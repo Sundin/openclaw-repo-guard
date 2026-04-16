@@ -54,19 +54,46 @@ function readCurrentBranch(repoPath) {
 
 function parsePushTargetBranch(command) {
   const normalized = command.replace(/\s+/g, ' ').trim();
-  const match = normalized.match(/\bgit\b(?:\s+[^;&|]+?)*\s+push\b\s+(?:--[^\s]+(?:\s+[^\s]+)?\s+)*([^\s]+)(?:\s+([^\s]+))?/);
-  const maybeRef = match?.[2] || '';
-  if (!maybeRef) {
+  const tokens = normalized.split(' ');
+  const pushIndex = tokens.findIndex((token) => token === 'push');
+  if (pushIndex === -1) {
     return null;
   }
-  const ref = maybeRef.replace(/^['"]|['"]$/g, '');
+
+  const args = tokens.slice(pushIndex + 1);
+  const positionals = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i];
+    if (!token || token === '&&' || token === '||' || token === ';' || token === '|') {
+      break;
+    }
+    if (token.startsWith('-')) {
+      if (
+        token === '-u' ||
+        token === '--set-upstream' ||
+        token === '--repo' ||
+        token === '--receive-pack' ||
+        token === '--exec'
+      ) {
+        i += 1;
+      }
+      continue;
+    }
+    positionals.push(token);
+  }
+
+  if (positionals.length === 0) {
+    return null;
+  }
+
+  const ref = (positionals[1] || '').replace(/^['"]|['"]$/g, '');
+  if (!ref) {
+    return null;
+  }
   if (ref.includes(':')) {
     return ref.split(':').pop() || null;
   }
   if (ref === 'HEAD') {
-    return null;
-  }
-  if (ref.startsWith('-')) {
     return null;
   }
   return ref;
