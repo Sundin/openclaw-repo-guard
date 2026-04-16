@@ -20,8 +20,5 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate plugin syntax
-        run: node --check index.js
-
-      - name: Run deterministic test suite
-        run: node --test test/*.test.mjs
+      - name: Run deterministic CI checks
+        run: npm run ci
