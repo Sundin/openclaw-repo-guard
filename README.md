@@ -13,6 +13,8 @@ Current protections:
 - blocks pushes from branches that are not based on the latest fetched `origin/<default-branch>` tip
 - refreshes and caches repo and PR preflight state before allowing a push
 
+Important: direct pushes to a default branch are denied by default. The only exception is an exact path match in `allowDirectPushRepos`.
+
 That last rule is important: if you forgot to fetch/rebase and your branch is based on a stale default branch, Repo Guard should stop the push and tell you to rebase or create a fresh branch first.
 
 ## How it works
@@ -70,9 +72,18 @@ cd ~/.openclaw/plugins/repo-guard
 git fetch origin
 git checkout master
 git pull --ff-only origin master
+openclaw plugins reload
+# or, if your setup does not hot-reload plugins:
+openclaw gateway restart
 ```
 
-If OpenClaw does not hot-reload plugins in your setup, restart the gateway/service after updating.
+After updating, verify the loaded build from the repo-guard log:
+
+```bash
+tail -20 ~/.openclaw/logs/repo-guard.log
+```
+
+You should see a fresh `[STARTUP]` line for the new build.
 
 ## Recommended workflow with Repo Guard enabled
 
@@ -83,6 +94,8 @@ git fetch origin
 git rebase origin/master
 # or create a fresh branch from the updated default branch
 ```
+
+Before pushing directly to a default branch, make sure the repo path is intentionally allowlisted. If it is not in `allowDirectPushRepos`, Repo Guard should block the push.
 
 If Repo Guard blocks the push because the branch base is stale, that is intentional. The expected fix is to rebase onto the latest fetched default branch or create a new branch from it.
 

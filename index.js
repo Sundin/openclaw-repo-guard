@@ -248,11 +248,12 @@ export default definePluginEntry({
 
       const isDefaultBranchPush = Boolean(repoState?.defaultBranch) && branch === repoState.defaultBranch;
       const directPushAllowed = allowDirectPushRepos.includes(repoPath);
+      appendLog(logFile, `[DEBUG] push-policy repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(repoState?.defaultBranch || null)} isDefaultBranchPush=${JSON.stringify(isDefaultBranchPush)} directPushAllowed=${JSON.stringify(directPushAllowed)} allowDirectPushRepos=${JSON.stringify(allowDirectPushRepos)}`);
       if (isDefaultBranchPush && !directPushAllowed) {
         appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=default-branch-push repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} command=${JSON.stringify(command)}`);
         return {
           block: true,
-          blockReason: `Repo Guard blocked a direct push to default branch ${branch} for ${repoPath}.`,
+          blockReason: `Repo Guard blocked a direct push to default branch ${branch} for ${repoPath}. Only explicitly allowlisted repo paths may push directly to the default branch.`,
         };
       }
 
