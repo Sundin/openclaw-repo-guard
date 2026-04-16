@@ -6,7 +6,7 @@ import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.2-preflight-v3 2026-04-16T18:55Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.3-preflight-v4 2026-04-16T19:26Z';
 
 function appendLog(logFile, line) {
   try {
@@ -96,7 +96,13 @@ function readDefaultBranch(repoPath) {
     const ref = execFileSync('git', ['-C', repoPath, 'symbolic-ref', 'refs/remotes/origin/HEAD'], { encoding: 'utf8' }).trim();
     return ref.split('/').pop() || null;
   } catch {
-    return null;
+    try {
+      const remoteShow = execFileSync('git', ['-C', repoPath, 'remote', 'show', 'origin'], { encoding: 'utf8' });
+      const match = remoteShow.match(/HEAD branch:\s+(\S+)/);
+      return match?.[1] || null;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -246,14 +252,15 @@ export default definePluginEntry({
         };
       }
 
-      const isDefaultBranchPush = Boolean(repoState?.defaultBranch) && branch === repoState.defaultBranch;
+      const inferredProtectedDefaultBranch = !repoState?.defaultBranch && (branch === 'master' || branch === 'main');
+      const isDefaultBranchPush = (Boolean(repoState?.defaultBranch) && branch === repoState.defaultBranch) || inferredProtectedDefaultBranch;
       const directPushAllowed = allowDirectPushRepos.includes(repoPath);
-      appendLog(logFile, `[DEBUG] push-policy repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(repoState?.defaultBranch || null)} isDefaultBranchPush=${JSON.stringify(isDefaultBranchPush)} directPushAllowed=${JSON.stringify(directPushAllowed)} allowDirectPushRepos=${JSON.stringify(allowDirectPushRepos)}`);
+      appendLog(logFile, `[DEBUG] push-policy repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(repoState?.defaultBranch || null)} inferredProtectedDefaultBranch=${JSON.stringify(inferredProtectedDefaultBranch)} isDefaultBranchPush=${JSON.stringify(isDefaultBranchPush)} directPushAllowed=${JSON.stringify(directPushAllowed)} allowDirectPushRepos=${JSON.stringify(allowDirectPushRepos)}`);
       if (isDefaultBranchPush && !directPushAllowed) {
         appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=default-branch-push repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} command=${JSON.stringify(command)}`);
         return {
           block: true,
-          blockReason: `Repo Guard blocked a direct push to default branch ${branch} for ${repoPath}. Only explicitly allowlisted repo paths may push directly to the default branch.`,
+          blockReason: `Repo Guard blocked a direct push to protected default branch ${branch} for ${repoPath}. Only explicitly allowlisted repo paths may push directly to the default branch.`,
         };
       }
 
