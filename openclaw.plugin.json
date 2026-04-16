@@ -1,0 +1,20 @@
+{
+  "id": "repo-guard",
+  "name": "Repo Guard",
+  "description": "Blocks unsafe git operations before tool execution",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "logFile": { "type": "string" },
+      "stateDir": { "type": "string" },
+      "blockForcePush": { "type": "boolean", "default": true },
+      "preflightMaxAgeMs": { "type": "number", "default": 60000 },
+      "allowDirectPushRepos": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": []
+      }
+    }
+  }
+}
