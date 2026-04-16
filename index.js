@@ -6,7 +6,7 @@ import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.1-preflight-v2 2026-04-13T10:35Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.2-preflight-v3 2026-04-16T18:55Z';
 
 function appendLog(logFile, line) {
   try {
@@ -100,6 +100,14 @@ function readDefaultBranch(repoPath) {
   }
 }
 
+function readMergeBase(repoPath, branchA, branchB) {
+  return execFileSync('git', ['-C', repoPath, 'merge-base', branchA, branchB], { encoding: 'utf8' }).trim();
+}
+
+function readCommit(repoPath, ref) {
+  return execFileSync('git', ['-C', repoPath, 'rev-parse', ref], { encoding: 'utf8' }).trim();
+}
+
 function computeRepoState(repoPath, logFile) {
   const branch = readCurrentBranch(repoPath);
   const repo = readOriginRepoSlug(repoPath);
@@ -107,12 +115,22 @@ function computeRepoState(repoPath, logFile) {
   const checkedAt = new Date().toISOString();
   const checkedAtMs = Date.now();
   const defaultBranch = readDefaultBranch(repoPath);
+  const defaultRemoteRef = defaultBranch ? `origin/${defaultBranch}` : null;
+
+  let defaultBranchHead = null;
+  let branchDefaultMergeBase = null;
+  if (defaultRemoteRef) {
+    defaultBranchHead = readCommit(repoPath, defaultRemoteRef);
+    branchDefaultMergeBase = readMergeBase(repoPath, branch, defaultRemoteRef);
+  }
 
   return {
     repoPath,
     repo,
     branch,
     defaultBranch,
+    defaultBranchHead,
+    branchDefaultMergeBase,
     checkedAt,
     checkedAtMs,
     pr: {
@@ -163,6 +181,7 @@ export default definePluginEntry({
       const logFile = pluginConfig.logFile || DEFAULT_LOG_FILE;
       const stateDir = pluginConfig.stateDir || DEFAULT_STATE_DIR;
       const blockForcePush = pluginConfig.blockForcePush !== false;
+      const requireUpToDateDefaultBase = pluginConfig.requireUpToDateDefaultBase !== false;
       const preflightMaxAgeMs = Number(pluginConfig.preflightMaxAgeMs || DEFAULT_PREFLIGHT_MAX_AGE_MS);
       const allowDirectPushRepos = Array.isArray(pluginConfig.allowDirectPushRepos) ? pluginConfig.allowDirectPushRepos : [];
 
@@ -234,6 +253,20 @@ export default definePluginEntry({
         return {
           block: true,
           blockReason: `Repo Guard blocked a direct push to default branch ${branch} for ${repoPath}.`,
+        };
+      }
+
+      if (
+        requireUpToDateDefaultBase &&
+        !isDefaultBranchPush &&
+        repoState?.defaultBranchHead &&
+        repoState?.branchDefaultMergeBase &&
+        repoState.defaultBranchHead !== repoState.branchDefaultMergeBase
+      ) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=stale-default-base repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(repoState.defaultBranch)} defaultHead=${JSON.stringify(repoState.defaultBranchHead)} mergeBase=${JSON.stringify(repoState.branchDefaultMergeBase)} command=${JSON.stringify(command)}`);
+        return {
+          block: true,
+          blockReason: `Repo Guard blocked a push from ${branch} because it is not based on the latest origin/${repoState.defaultBranch}. Fetch/rebase or create a fresh branch from the updated default branch first.`,
         };
       }
 
