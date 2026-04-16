@@ -56,6 +56,20 @@ test('isGitPushCommand ignores embedded git push strings in non-push commands', 
   assert.equal(isGitPushCommand('bash -lc "git status && echo git push origin master"'), false);
 });
 
+test('isGitPushCommand detects git push in later top-level chained segments', () => {
+  assert.equal(isGitPushCommand('npm test && git push origin master'), true);
+  assert.equal(isGitPushCommand('echo ready; git push origin release'), true);
+  assert.equal(isGitPushCommand('false || git push origin hotfix'), true);
+});
+
+
+test('isGitPushCommand ignores quoted or escaped separators inside segments', () => {
+  assert.equal(isGitPushCommand('printf "done && still quoted" && git push origin master'), true);
+  assert.equal(isGitPushCommand('echo one\;two && git push origin master'), true);
+  assert.equal(isGitPushCommand('echo one\|two && git push origin master'), true);
+  assert.equal(isGitPushCommand('printf "git push origin master && nope"'), false);
+});
+
 test('isForcePushCommand detects force push variants', () => {
   assert.equal(isForcePushCommand('git push --force origin master'), true);
   assert.equal(isForcePushCommand('git push --force-with-lease origin branch'), true);
@@ -105,6 +119,28 @@ test('parsePushTargetBranch ignores chained commands after push', () => {
   assert.equal(
     parsePushTargetBranch('git push origin master ; echo done'),
     'master',
+  );
+});
+
+test('parsePushTargetBranch finds push branch in later chained segments', () => {
+  assert.equal(
+    parsePushTargetBranch('npm test && git push origin feature/chain'),
+    'feature/chain',
+  );
+  assert.equal(
+    parsePushTargetBranch('echo prep || git push origin release/v2'),
+    'release/v2',
+  );
+});
+
+test('parsePushTargetBranch ignores quoted or escaped separators near push arguments', () => {
+  assert.equal(
+    parsePushTargetBranch('printf "done && still quoted" && git push origin feature/quoted'),
+    'feature/quoted',
+  );
+  assert.equal(
+    parsePushTargetBranch('echo one\;two && git push origin feature/escaped'),
+    'feature/escaped',
   );
 });
 
