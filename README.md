@@ -85,6 +85,8 @@ tail -20 ~/.openclaw/logs/repo-guard.log
 
 You should see a fresh `[STARTUP]` line for the new build.
 
+Important: bump the runtime `BUILD_SIGNATURE` in `index.js` whenever behavior changes that you need to verify after restart. Updating `package.json` alone is not enough for runtime verification, because the startup log prints `BUILD_SIGNATURE`, not the package version.
+
 ## Recommended workflow with Repo Guard enabled
 
 Before pushing a branch:
