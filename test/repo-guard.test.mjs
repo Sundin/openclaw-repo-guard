@@ -43,8 +43,17 @@ test('normalizeCommand collapses whitespace safely', () => {
 test('isGitPushCommand detects push commands and ignores non-push commands', () => {
   assert.equal(isGitPushCommand('git push origin master'), true);
   assert.equal(isGitPushCommand('git -C /tmp/repo push -u origin feature/test'), true);
+  assert.equal(isGitPushCommand('FOO=bar git push origin master'), true);
   assert.equal(isGitPushCommand('git status'), false);
   assert.equal(isGitPushCommand('gh pr create'), false);
+});
+
+test('isGitPushCommand ignores embedded git push strings in non-push commands', () => {
+  assert.equal(isGitPushCommand('echo git push origin master'), false);
+  assert.equal(isGitPushCommand('printf "git push origin master\\n"'), false);
+  assert.equal(isGitPushCommand('node -e "console.log(\'git push origin master\')"'), false);
+  assert.equal(isGitPushCommand('git commit -m "prepare git push origin master"'), false);
+  assert.equal(isGitPushCommand('bash -lc "git status && echo git push origin master"'), false);
 });
 
 test('isForcePushCommand detects force push variants', () => {
