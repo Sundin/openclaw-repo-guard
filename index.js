@@ -52,6 +52,26 @@ function readCurrentBranch(repoPath) {
   return execFileSync('git', ['-C', repoPath, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
 }
 
+function parsePushTargetBranch(command) {
+  const normalized = command.replace(/\s+/g, ' ').trim();
+  const match = normalized.match(/\bgit\b(?:\s+[^;&|]+?)*\s+push\b\s+(?:--[^\s]+(?:\s+[^\s]+)?\s+)*([^\s]+)(?:\s+([^\s]+))?/);
+  const maybeRef = match?.[2] || '';
+  if (!maybeRef) {
+    return null;
+  }
+  const ref = maybeRef.replace(/^['"]|['"]$/g, '');
+  if (ref.includes(':')) {
+    return ref.split(':').pop() || null;
+  }
+  if (ref === 'HEAD') {
+    return null;
+  }
+  if (ref.startsWith('-')) {
+    return null;
+  }
+  return ref;
+}
+
 function readOriginRepoSlug(repoPath) {
   const remote = execFileSync('git', ['-C', repoPath, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
   const match = remote.match(/github\.com[:/]([^/]+\/[^/.]+)(?:\.git)?$/);
@@ -206,6 +226,7 @@ export default definePluginEntry({
       }
 
       const repoPath = extractRepoPath(command, event.params);
+      const pushTargetBranch = parsePushTargetBranch(command);
       let branch = '';
       try {
         branch = readCurrentBranch(repoPath);
@@ -214,6 +235,14 @@ export default definePluginEntry({
         return {
           block: true,
           blockReason: 'Repo Guard could not verify the current branch before push.',
+        };
+      }
+
+      if (pushTargetBranch && pushTargetBranch !== branch) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=branch-target-mismatch repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} pushTargetBranch=${JSON.stringify(pushTargetBranch)} command=${JSON.stringify(command)}`);
+        return {
+          block: true,
+          blockReason: `Repo Guard blocked a push because the checked out branch ${branch} does not match the push target ${pushTargetBranch}. Switch to the branch you intend to push first.`,
         };
       }
 
@@ -252,15 +281,16 @@ export default definePluginEntry({
         };
       }
 
-      const inferredProtectedDefaultBranch = !repoState?.defaultBranch && (branch === 'master' || branch === 'main');
-      const isDefaultBranchPush = (Boolean(repoState?.defaultBranch) && branch === repoState.defaultBranch) || inferredProtectedDefaultBranch;
+      const effectiveBranch = pushTargetBranch || branch;
+      const inferredProtectedDefaultBranch = !repoState?.defaultBranch && (effectiveBranch === 'master' || effectiveBranch === 'main');
+      const isDefaultBranchPush = (Boolean(repoState?.defaultBranch) && effectiveBranch === repoState.defaultBranch) || inferredProtectedDefaultBranch;
       const directPushAllowed = allowDirectPushRepos.includes(repoPath);
-      appendLog(logFile, `[DEBUG] push-policy repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(repoState?.defaultBranch || null)} inferredProtectedDefaultBranch=${JSON.stringify(inferredProtectedDefaultBranch)} isDefaultBranchPush=${JSON.stringify(isDefaultBranchPush)} directPushAllowed=${JSON.stringify(directPushAllowed)} allowDirectPushRepos=${JSON.stringify(allowDirectPushRepos)}`);
+      appendLog(logFile, `[DEBUG] push-policy repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} effectiveBranch=${JSON.stringify(effectiveBranch)} pushTargetBranch=${JSON.stringify(pushTargetBranch)} defaultBranch=${JSON.stringify(repoState?.defaultBranch || null)} inferredProtectedDefaultBranch=${JSON.stringify(inferredProtectedDefaultBranch)} isDefaultBranchPush=${JSON.stringify(isDefaultBranchPush)} directPushAllowed=${JSON.stringify(directPushAllowed)} allowDirectPushRepos=${JSON.stringify(allowDirectPushRepos)}`);
       if (isDefaultBranchPush && !directPushAllowed) {
         appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=default-branch-push repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} command=${JSON.stringify(command)}`);
         return {
           block: true,
-          blockReason: `Repo Guard blocked a direct push to protected default branch ${branch} for ${repoPath}. Only explicitly allowlisted repo paths may push directly to the default branch.`,
+          blockReason: `Repo Guard blocked a direct push to protected default branch ${effectiveBranch} for ${repoPath}. Only explicitly allowlisted repo paths may push directly to the default branch.`,
         };
       }
 
