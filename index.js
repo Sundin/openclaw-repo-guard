@@ -2,6 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+import {
+  extractExecCommand,
+  extractRepoPath,
+  normalizeCommand,
+  isGitPushCommand,
+  isForcePushCommand,
+  parsePushTargetBranch,
+  stateFilePath,
+  hasFreshState,
+} from './lib/repo-guard-core.js';
 
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
@@ -15,88 +25,8 @@ function appendLog(logFile, line) {
   } catch {}
 }
 
-function extractExecCommand(params) {
-  const candidates = [params?.command, params?.cmd, params?.script];
-  return candidates.find((value) => typeof value === 'string') || '';
-}
-
-function extractRepoPath(command, params) {
-  const match = command.match(/\bgit\s+-C\s+([^\s;&|]+)/);
-  if (match?.[1]) {
-    return match[1].replace(/^['"]|['"]$/g, '');
-  }
-
-  const workdir = params?.workdir || params?.cwd || params?.dir;
-  if (typeof workdir === 'string' && workdir.trim()) {
-    return workdir;
-  }
-
-  return process.cwd();
-}
-
-function normalizeCommand(command) {
-  return ` ${command.replace(/\s+/g, ' ').trim()} `;
-}
-
-function isGitPushCommand(command) {
-  return /\bgit\b(?:\s+[^;&|]+?)*\s+push\b/.test(normalizeCommand(command));
-}
-
-function isForcePushCommand(command) {
-  const normalized = normalizeCommand(command);
-  const hasForceFlag = /\s--force(?:-with-lease)?\b/.test(normalized) || /\s-f\b/.test(normalized);
-  return isGitPushCommand(command) && hasForceFlag;
-}
-
 function readCurrentBranch(repoPath) {
   return execFileSync('git', ['-C', repoPath, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
-}
-
-function parsePushTargetBranch(command) {
-  const normalized = command.replace(/\s+/g, ' ').trim();
-  const tokens = normalized.split(' ');
-  const pushIndex = tokens.findIndex((token) => token === 'push');
-  if (pushIndex === -1) {
-    return null;
-  }
-
-  const args = tokens.slice(pushIndex + 1);
-  const positionals = [];
-  for (let i = 0; i < args.length; i += 1) {
-    const token = args[i];
-    if (!token || token === '&&' || token === '||' || token === ';' || token === '|') {
-      break;
-    }
-    if (token.startsWith('-')) {
-      if (
-        token === '-u' ||
-        token === '--set-upstream' ||
-        token === '--repo' ||
-        token === '--receive-pack' ||
-        token === '--exec'
-      ) {
-        i += 1;
-      }
-      continue;
-    }
-    positionals.push(token);
-  }
-
-  if (positionals.length === 0) {
-    return null;
-  }
-
-  const ref = (positionals[1] || '').replace(/^['"]|['"]$/g, '');
-  if (!ref) {
-    return null;
-  }
-  if (ref.includes(':')) {
-    return ref.split(':').pop() || null;
-  }
-  if (ref === 'HEAD') {
-    return null;
-  }
-  return ref;
 }
 
 function readOriginRepoSlug(repoPath) {
@@ -133,10 +63,6 @@ function readPrState(repoPath, branch, logFile) {
   }
 }
 
-function stateFilePath(stateDir, repoPath) {
-  const safe = repoPath.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  return path.join(stateDir, `${safe}.json`);
-}
 
 function readDefaultBranch(repoPath) {
   try {
@@ -211,14 +137,6 @@ function readRepoState(stateDir, repoPath) {
   } catch {
     return null;
   }
-}
-
-function hasFreshState(repoState, repoPath, branch, maxAgeMs) {
-  if (!repoState) return false;
-  if (repoState.repoPath !== repoPath) return false;
-  if (repoState.branch !== branch) return false;
-  const ageMs = Date.now() - Number(repoState.checkedAtMs || 0);
-  return ageMs >= 0 && ageMs <= maxAgeMs;
 }
 
 export default definePluginEntry({

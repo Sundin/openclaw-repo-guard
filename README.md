@@ -87,6 +87,23 @@ You should see a fresh `[STARTUP]` line for the new build.
 
 Important: bump the runtime `BUILD_SIGNATURE` in `index.js` whenever behavior changes that you need to verify after restart. Updating `package.json` alone is not enough for runtime verification, because the startup log prints `BUILD_SIGNATURE`, not the package version.
 
+## Deterministic verification
+
+For local contributor checks, use the same deterministic suite entrypoint as CI:
+
+```bash
+npm run ci
+```
+
+That command runs both syntax validation targets:
+- `node --check index.js`
+- `node --check lib/repo-guard-core.js`
+
+And the deterministic test suite:
+- `node --test test/*.test.mjs`
+
+This repo intentionally keeps CI limited to deterministic checks only. It does not require a live OpenClaw gateway, networked integration fixtures, or external services.
+
 ## Recommended workflow with Repo Guard enabled
 
 Before pushing a branch:

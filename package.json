@@ -2,6 +2,11 @@
   "name": "repo-guard",
   "version": "0.1.6",
   "type": "module",
+  "scripts": {
+    "check:syntax": "node --check index.js && node --check lib/repo-guard-core.js",
+    "test:deterministic": "node --test test/*.test.mjs",
+    "ci": "npm run check:syntax && npm run test:deterministic"
+  },
   "openclaw": {
     "extensions": ["./index.js"],
     "hooks": {
