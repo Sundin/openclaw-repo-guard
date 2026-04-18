@@ -62,6 +62,22 @@ test('isGitPushCommand detects git push in later top-level chained segments', ()
   assert.equal(isGitPushCommand('false || git push origin hotfix'), true);
 });
 
+test('isGitPushCommand detects git push inside multiline shell scripts and loop bodies', () => {
+  assert.equal(
+    isGitPushCommand(`set -e\ncd /tmp/repo\ngit push origin feature/line-break`),
+    true,
+  );
+  assert.equal(
+    isGitPushCommand(
+      'for branch in feature/foo feature/bar; do git push --force-with-lease origin "$branch"; done',
+    ),
+    true,
+  );
+  assert.equal(
+    isGitPushCommand(`for branch in feature/foo feature/bar; do\n  git push --force-with-lease origin "$branch"\ndone`),
+    true,
+  );
+});
 
 test('isGitPushCommand ignores quoted or escaped separators inside segments', () => {
   assert.equal(isGitPushCommand('printf "done && still quoted" && git push origin master'), true);
@@ -74,6 +90,12 @@ test('isForcePushCommand detects force push variants', () => {
   assert.equal(isForcePushCommand('git push --force origin master'), true);
   assert.equal(isForcePushCommand('git push --force-with-lease origin branch'), true);
   assert.equal(isForcePushCommand('git push -f origin branch'), true);
+  assert.equal(
+    isForcePushCommand(
+      'for branch in feature/foo feature/bar; do git push --force-with-lease origin "$branch"; done',
+    ),
+    true,
+  );
   assert.equal(isForcePushCommand('git push origin branch'), false);
 });
 
@@ -130,6 +152,19 @@ test('parsePushTargetBranch finds push branch in later chained segments', () => 
   assert.equal(
     parsePushTargetBranch('echo prep || git push origin release/v2'),
     'release/v2',
+  );
+});
+
+test('parsePushTargetBranch detects branch targets inside loop bodies', () => {
+  assert.equal(
+    parsePushTargetBranch(
+      'for branch in feature/foo feature/bar; do git push --force-with-lease origin "$branch"; done',
+    ),
+    '$branch',
+  );
+  assert.equal(
+    parsePushTargetBranch(`for branch in feature/foo; do\n  git push origin hotfix/$branch\ndone`),
+    'hotfix/$branch',
   );
 });
 
