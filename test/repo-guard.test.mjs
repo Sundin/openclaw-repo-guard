@@ -46,6 +46,7 @@ test('isGitPushCommand detects push commands and ignores non-push commands', () 
   assert.equal(isGitPushCommand('git -C /tmp/repo push -u origin feature/test'), true);
   assert.equal(isGitPushCommand('FOO=bar git push origin master'), true);
   assert.equal(isGitPushCommand('git status'), false);
+  assert.equal(isGitPushCommand('git stash push -u'), false);
   assert.equal(isGitPushCommand('gh pr create'), false);
 });
 
@@ -75,6 +76,7 @@ test('isForcePushCommand detects force push variants', () => {
   assert.equal(isForcePushCommand('git push --force origin master'), true);
   assert.equal(isForcePushCommand('git push --force-with-lease origin branch'), true);
   assert.equal(isForcePushCommand('git push -f origin branch'), true);
+  assert.equal(isForcePushCommand('git stash push --force'), false);
   assert.equal(isForcePushCommand('git push origin branch'), false);
 });
 
@@ -110,6 +112,7 @@ test('parsePushTargetBranch handles refspec pushes', () => {
 test('parsePushTargetBranch returns null when no explicit branch is present', () => {
   assert.equal(parsePushTargetBranch('git push'), null);
   assert.equal(parsePushTargetBranch('git push origin HEAD'), null);
+  assert.equal(parsePushTargetBranch('git stash push -u'), null);
 });
 
 test('parsePushTargetBranch ignores chained commands after push', () => {
