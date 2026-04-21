@@ -1,6 +1,6 @@
 {
   "name": "repo-guard",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "type": "module",
   "scripts": {
     "check:syntax": "node --check index.js && node --check lib/repo-guard-core.js",

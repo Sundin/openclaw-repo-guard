@@ -8,7 +8,6 @@
     "properties": {
       "logFile": { "type": "string" },
       "stateDir": { "type": "string" },
-      "blockForcePush": { "type": "boolean", "default": true },
       "requireUpToDateDefaultBase": { "type": "boolean", "default": true },
       "preflightMaxAgeMs": { "type": "number", "default": 60000 },
       "allowDirectPushRepos": {

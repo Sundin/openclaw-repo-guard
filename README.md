@@ -7,13 +7,15 @@ Repo Guard is an OpenClaw plugin that blocks unsafe git push operations before `
 Repo Guard intercepts `exec` calls that contain `git push` and applies preflight checks before the command is allowed to run.
 
 Current protections:
-- blocks force pushes
+- blocks force pushes, with no allowlist bypass
 - blocks pushes from branches whose PR has already been merged
 - blocks direct pushes to the default branch unless the repo path is explicitly allowlisted
 - blocks pushes from branches that are not based on the latest fetched `origin/<default-branch>` tip
 - refreshes and caches repo and PR preflight state before allowing a push
 
 Important: direct pushes to a default branch are denied by default. The only exception is an exact path match in `allowDirectPushRepos`.
+
+Important: that allowlist only applies to normal direct pushes to the default branch. It does not and must not bypass the force-push block.
 
 That last rule is important: if you forgot to fetch/rebase and your branch is based on a stale default branch, Repo Guard should stop the push and tell you to rebase or create a fresh branch first.
 
@@ -42,7 +44,6 @@ Supported plugin config:
 
 - `logFile` — path to the log file
 - `stateDir` — path to cached repo state
-- `blockForcePush` — whether force pushes are blocked, default `true`
 - `requireUpToDateDefaultBase` — whether pushes from stale branch bases are blocked, default `true`
 - `preflightMaxAgeMs` — max age of cached preflight state, default `60000`
 - `allowDirectPushRepos` — list of repo paths allowed to push directly to default branch
@@ -115,6 +116,8 @@ git rebase origin/master
 ```
 
 Before pushing directly to a default branch, make sure the repo path is intentionally allowlisted. If it is not in `allowDirectPushRepos`, Repo Guard should block the push.
+
+Even if a repo path is allowlisted for direct default-branch pushes, force push is still blocked.
 
 If Repo Guard blocks the push because the branch base is stale, that is intentional. The expected fix is to rebase onto the latest fetched default branch or create a new branch from it.
 

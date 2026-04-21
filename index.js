@@ -16,7 +16,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.6-preflight-v5 2026-04-16T20:27Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.8-force-push-non-bypassable 2026-04-21T08:35Z';
 
 function appendLog(logFile, line) {
   try {
@@ -151,7 +151,6 @@ export default definePluginEntry({
       const pluginConfig = api.pluginConfig || {};
       const logFile = pluginConfig.logFile || DEFAULT_LOG_FILE;
       const stateDir = pluginConfig.stateDir || DEFAULT_STATE_DIR;
-      const blockForcePush = pluginConfig.blockForcePush !== false;
       const requireUpToDateDefaultBase = pluginConfig.requireUpToDateDefaultBase !== false;
       const preflightMaxAgeMs = Number(pluginConfig.preflightMaxAgeMs || DEFAULT_PREFLIGHT_MAX_AGE_MS);
       const allowDirectPushRepos = Array.isArray(pluginConfig.allowDirectPushRepos) ? pluginConfig.allowDirectPushRepos : [];
@@ -191,11 +190,11 @@ export default definePluginEntry({
         };
       }
 
-      if (blockForcePush && isForcePushCommand(command)) {
-        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=force-push command=${JSON.stringify(command)}`);
+      if (isForcePushCommand(command)) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=force-push repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} command=${JSON.stringify(command)}`);
         return {
           block: true,
-          blockReason: 'Repo Guard blocked a force push. Use a normal push or create a fresh branch instead.',
+          blockReason: 'Repo Guard blocked a force push. Force push is never allowed, including for repos allowlisted for direct default-branch pushes. Use a normal push or create a fresh branch instead.',
         };
       }
 

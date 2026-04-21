@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   extractExecCommand,
   extractRepoPath,
@@ -162,4 +163,19 @@ test('hasFreshState validates repo, branch, and age window', () => {
   assert.equal(hasFreshState(valid, '/tmp/repo', 'other-branch', 10000), false);
   assert.equal(hasFreshState(valid, '/tmp/other', 'feature/test', 10000), false);
   assert.equal(hasFreshState(valid, '/tmp/repo', 'feature/test', 1000), false);
+});
+
+test('plugin source makes force push non-bypassable even for allowlisted repos', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  const forceBlock = source.indexOf('if (isForcePushCommand(command))');
+  const directPushPolicy = source.indexOf('if (isDefaultBranchPush && !directPushAllowed)');
+  assert.notEqual(forceBlock, -1);
+  assert.notEqual(directPushPolicy, -1);
+  assert.ok(forceBlock < directPushPolicy, 'force-push block should run before direct-push allowlist policy');
+  assert.match(source, /Force push is never allowed, including for repos allowlisted for direct default-branch pushes/);
+});
+
+test('plugin schema no longer exposes a force-push bypass toggle', () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'));
+  assert.equal(Object.hasOwn(manifest.configSchema.properties, 'blockForcePush'), false);
 });
