@@ -16,7 +16,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.7-loop-force-push-guard 2026-04-18T17:35Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.10-refresh-origin-before-push-check 2026-04-21T20:15Z';
 
 function appendLog(logFile, line) {
   try {
@@ -87,7 +87,15 @@ function readCommit(repoPath, ref) {
   return execFileSync('git', ['-C', repoPath, 'rev-parse', ref], { encoding: 'utf8' }).trim();
 }
 
+function refreshOrigin(repoPath) {
+  execFileSync('git', ['-C', repoPath, 'fetch', 'origin', '--prune'], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+}
+
 function computeRepoState(repoPath, logFile) {
+  refreshOrigin(repoPath);
   const branch = readCurrentBranch(repoPath);
   const repo = readOriginRepoSlug(repoPath);
   const prState = readPrState(repoPath, branch, logFile);
@@ -211,7 +219,7 @@ export default definePluginEntry({
           appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=preflight-refresh-failed repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} error=${JSON.stringify(String(error))}`);
           return {
             block: true,
-            blockReason: 'Repo Guard could not refresh repo state before push.',
+            blockReason: 'Repo Guard could not refresh repo state from origin before push.',
           };
         }
       } else {
