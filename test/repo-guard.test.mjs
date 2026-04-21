@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   extractExecCommand,
   extractRepoPath,
@@ -197,4 +198,15 @@ test('hasFreshState validates repo, branch, and age window', () => {
   assert.equal(hasFreshState(valid, '/tmp/repo', 'other-branch', 10000), false);
   assert.equal(hasFreshState(valid, '/tmp/other', 'feature/test', 10000), false);
   assert.equal(hasFreshState(valid, '/tmp/repo', 'feature/test', 1000), false);
+});
+
+test('plugin refreshes origin before computing branch freshness state', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(source, /function refreshOrigin\(repoPath\)/);
+  assert.match(source, /git', \['-C', repoPath, 'fetch', 'origin', '--prune'\]/);
+  const refreshCall = source.indexOf('refreshOrigin(repoPath);');
+  const defaultHeadRead = source.indexOf('defaultBranchHead = readCommit(repoPath, defaultRemoteRef);');
+  assert.notEqual(refreshCall, -1);
+  assert.notEqual(defaultHeadRead, -1);
+  assert.ok(refreshCall < defaultHeadRead, 'origin should refresh before comparing branch against origin/default');
 });
