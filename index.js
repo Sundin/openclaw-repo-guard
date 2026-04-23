@@ -7,6 +7,10 @@ import {
   extractRepoPath,
   normalizeCommand,
   isGitPushCommand,
+  isGitBranchCreateCommand,
+  parseGitBranchCreate,
+  looksLikeOriginDefaultRef,
+  looksLikeLocalDefaultRef,
   isWrappedGitPushCommand,
   isForcePushCommand,
   parsePushTargetBranch,
@@ -17,7 +21,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.11-refresh-origin-and-block-wrapped-push 2026-04-23T20:28Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.12-enforce-fresh-default-before-branching 2026-04-23T20:36Z';
 
 function appendLog(logFile, line) {
   try {
@@ -174,7 +178,10 @@ export default definePluginEntry({
         return;
       }
 
-      if (!isGitPushCommand(command)) {
+      const isPushCommand = isGitPushCommand(command);
+      const isBranchCreateCommand = isGitBranchCreateCommand(command);
+
+      if (!isPushCommand && !isBranchCreateCommand) {
         appendLog(logFile, `[ALLOW] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} command=${JSON.stringify(command)}`);
         return;
       }
@@ -233,6 +240,33 @@ export default definePluginEntry({
         }
       } else {
         appendLog(logFile, `[DEBUG] using fresh preflight repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} ageMs=${Date.now() - Number(repoState.checkedAtMs || 0)}`);
+      }
+
+      if (isBranchCreateCommand) {
+        const branchCreate = parseGitBranchCreate(command);
+        const defaultBranch = repoState?.defaultBranch || null;
+        const defaultRemoteRef = defaultBranch ? `origin/${defaultBranch}` : null;
+        const currentCommit = readCommit(repoPath, 'HEAD');
+        const defaultHead = defaultRemoteRef ? readCommit(repoPath, defaultRemoteRef) : null;
+        const startPoint = branchCreate?.startPoint || null;
+        const startsFromOriginDefault = looksLikeOriginDefaultRef(startPoint, defaultBranch);
+        const startsFromLocalDefault = looksLikeLocalDefaultRef(startPoint, defaultBranch);
+        const implicitFromCurrentBranch = !startPoint;
+        const currentBranchIsDefault = Boolean(defaultBranch) && branch === defaultBranch;
+        const currentBranchFresh = Boolean(defaultHead) && currentCommit === defaultHead;
+        const localDefaultFresh = Boolean(defaultHead) && Boolean(defaultBranch) && readCommit(repoPath, defaultBranch) === defaultHead;
+
+        const allowed = startsFromOriginDefault
+          || (startsFromLocalDefault && localDefaultFresh)
+          || (implicitFromCurrentBranch && currentBranchIsDefault && currentBranchFresh);
+
+        if (!allowed) {
+          appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=stale-default-branch-create repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} defaultBranch=${JSON.stringify(defaultBranch)} startPoint=${JSON.stringify(startPoint)} command=${JSON.stringify(command)}`);
+          return {
+            block: true,
+            blockReason: `Repo Guard blocked new branch creation because it was not starting from a freshly updated ${defaultBranch || 'default branch'}. Refresh/switch to the latest origin/${defaultBranch || 'default'} first, or create the branch explicitly from origin/${defaultBranch || 'default'}.`,
+          };
+        }
       }
 
       if (repoState?.pr?.merged) {
