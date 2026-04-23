@@ -6,6 +6,10 @@ import {
   extractRepoPath,
   normalizeCommand,
   isGitPushCommand,
+  isGitBranchCreateCommand,
+  parseGitBranchCreate,
+  looksLikeOriginDefaultRef,
+  looksLikeLocalDefaultRef,
   isWrappedGitPushCommand,
   isForcePushCommand,
   parsePushTargetBranch,
@@ -195,6 +199,42 @@ test('parsePushTargetBranch ignores quoted or escaped separators near push argum
   );
 });
 
+test('isGitBranchCreateCommand detects checkout/switch branch creation flows', () => {
+  assert.equal(isGitBranchCreateCommand('git checkout -b feature/test'), true);
+  assert.equal(isGitBranchCreateCommand('git checkout -B feature/test origin/master'), true);
+  assert.equal(isGitBranchCreateCommand('git switch -c feature/test'), true);
+  assert.equal(isGitBranchCreateCommand('git switch -C feature/test origin/master'), true);
+  assert.equal(isGitBranchCreateCommand('git checkout master'), false);
+  assert.equal(isGitBranchCreateCommand('git switch master'), false);
+});
+
+test('parseGitBranchCreate parses new branch and optional start point', () => {
+  assert.deepEqual(parseGitBranchCreate('git checkout -b feature/test'), {
+    subcommand: 'checkout',
+    newBranch: 'feature/test',
+    startPoint: null,
+  });
+  assert.deepEqual(parseGitBranchCreate('git checkout -B feature/test origin/master'), {
+    subcommand: 'checkout',
+    newBranch: 'feature/test',
+    startPoint: 'origin/master',
+  });
+  assert.deepEqual(parseGitBranchCreate('git switch -c feature/test master'), {
+    subcommand: 'switch',
+    newBranch: 'feature/test',
+    startPoint: 'master',
+  });
+});
+
+test('default-branch ref helpers match local and remote default refs', () => {
+  assert.equal(looksLikeOriginDefaultRef('origin/master', 'master'), true);
+  assert.equal(looksLikeOriginDefaultRef('refs/remotes/origin/master', 'master'), true);
+  assert.equal(looksLikeOriginDefaultRef('master', 'master'), false);
+  assert.equal(looksLikeLocalDefaultRef('master', 'master'), true);
+  assert.equal(looksLikeLocalDefaultRef('refs/heads/master', 'master'), true);
+  assert.equal(looksLikeLocalDefaultRef('origin/master', 'master'), false);
+});
+
 test('stateFilePath creates deterministic safe file names', () => {
   assert.equal(
     stateFilePath('/state', '/home/ubuntu/.openclaw/plugins/repo-guard'),
@@ -235,4 +275,12 @@ test('plugin source blocks wrapped git pushes before repo preflight', () => {
   assert.notEqual(repoPathRead, -1);
   assert.ok(wrappedBlock < repoPathRead, 'wrapped-push block should run before repo path preflight');
   assert.match(source, /Repo Guard blocked a wrapped git push/);
+});
+
+
+test('plugin source blocks stale local default branch checkout before new branch creation', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(source, /isGitBranchCreateCommand/);
+  assert.match(source, /reason=stale-default-branch-create/);
+  assert.match(source, /blocked new branch creation because it was not starting from a freshly updated/);
 });

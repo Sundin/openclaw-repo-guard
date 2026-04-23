@@ -12,6 +12,7 @@ Current protections:
 - blocks pushes from branches whose PR has already been merged
 - blocks direct pushes to the default branch unless the repo path is explicitly allowlisted
 - blocks pushes from branches that are not based on the latest fetched `origin/<default-branch>` tip
+- blocks creating a new branch from stale local `master`/`main` instead of a freshly updated default branch
 - refreshes and caches repo and PR preflight state before allowing a push
 
 Important: direct pushes to a default branch are denied by default. The only exception is an exact path match in `allowDirectPushRepos`.
@@ -20,7 +21,7 @@ That last rule is important: if you forgot to fetch/rebase and your branch is ba
 
 ## How it works
 
-For push preflight, Repo Guard inspects:
+For push and branch-creation preflight, Repo Guard inspects:
 - current branch
 - origin remote slug
 - default branch from `origin/HEAD`
@@ -128,3 +129,6 @@ By default the plugin writes:
 ## Notes
 
 This repo was extracted from a local OpenClaw plugin installation so it can be version controlled and improved normally.
+
+
+When creating a new branch, start from a freshly updated local default branch or explicitly from `origin/<default-branch>`. Repo Guard now blocks `git checkout -b ...` / `git switch -c ...` if they start from stale local `master`/`main`.
