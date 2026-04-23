@@ -4,10 +4,11 @@ Repo Guard is an OpenClaw plugin that blocks unsafe git push operations before `
 
 ## What it enforces
 
-Repo Guard intercepts `exec` calls that contain `git push` and applies preflight checks before the command is allowed to run.
+Repo Guard intercepts `exec` calls that contain `git push` and applies preflight checks before the command is allowed to run. It also blocks common inline-wrapper bypass patterns where Python, Node, or shell snippets invoke `git push` underneath.
 
 Current protections:
-- blocks force pushes
+- blocks force pushes, with no allowlist bypass
+- blocks wrapped or inline-script git pushes that try to hide the real push from preflight inspection
 - blocks pushes from branches whose PR has already been merged
 - blocks direct pushes to the default branch unless the repo path is explicitly allowlisted
 - blocks pushes from branches that are not based on the latest fetched `origin/<default-branch>` tip
