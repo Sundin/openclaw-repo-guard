@@ -6,6 +6,7 @@ import {
   extractRepoPath,
   normalizeCommand,
   isGitPushCommand,
+  isWrappedGitPushCommand,
   isForcePushCommand,
   parsePushTargetBranch,
   stateFilePath,
@@ -56,6 +57,20 @@ test('isGitPushCommand ignores embedded git push strings in non-push commands', 
   assert.equal(isGitPushCommand('node -e "console.log(\'git push origin master\')"'), false);
   assert.equal(isGitPushCommand('git commit -m "prepare git push origin master"'), false);
   assert.equal(isGitPushCommand('bash -lc "git status && echo git push origin master"'), false);
+});
+
+
+
+test('isWrappedGitPushCommand detects inline wrapper bypass patterns', () => {
+  assert.equal(isWrappedGitPushCommand(`python3 - <<'PY'
+import subprocess
+subprocess.run(['git', 'push'], check=True)
+PY`), true);
+  assert.equal(isWrappedGitPushCommand(`python3 -c "import subprocess; subprocess.run(['git','push'], check=True)"`), true);
+  assert.equal(isWrappedGitPushCommand(`node -e "require('node:child_process').execFileSync('git', ['push'])"`), true);
+  assert.equal(isWrappedGitPushCommand(`bash -lc 'git push origin branch'`), true);
+  assert.equal(isWrappedGitPushCommand(`python3 -c "print('git push origin master')"`), false);
+  assert.equal(isWrappedGitPushCommand(`node -e "console.log('git push origin master')"`), false);
 });
 
 test('isGitPushCommand detects git push in later top-level chained segments', () => {
@@ -181,4 +196,15 @@ test('plugin source makes force push non-bypassable even for allowlisted repos',
 test('plugin schema no longer exposes a force-push bypass toggle', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../openclaw.plugin.json', import.meta.url), 'utf8'));
   assert.equal(Object.hasOwn(manifest.configSchema.properties, 'blockForcePush'), false);
+});
+
+
+test('plugin source blocks wrapped git pushes before repo preflight', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  const wrappedBlock = source.indexOf('if (isWrappedGitPushCommand(command))');
+  const repoPathRead = source.indexOf('const repoPath = extractRepoPath(command, event.params);');
+  assert.notEqual(wrappedBlock, -1);
+  assert.notEqual(repoPathRead, -1);
+  assert.ok(wrappedBlock < repoPathRead, 'wrapped-push block should run before repo path preflight');
+  assert.match(source, /Repo Guard blocked a wrapped git push/);
 });

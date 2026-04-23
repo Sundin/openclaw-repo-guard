@@ -7,6 +7,7 @@ import {
   extractRepoPath,
   normalizeCommand,
   isGitPushCommand,
+  isWrappedGitPushCommand,
   isForcePushCommand,
   parsePushTargetBranch,
   stateFilePath,
@@ -16,7 +17,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.8-force-push-non-bypassable 2026-04-21T08:35Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.9-block-wrapped-push-bypass 2026-04-23T20:10Z';
 
 function appendLog(logFile, line) {
   try {
@@ -167,6 +168,14 @@ export default definePluginEntry({
       if (!isGitPushCommand(command)) {
         appendLog(logFile, `[ALLOW] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} command=${JSON.stringify(command)}`);
         return;
+      }
+
+      if (isWrappedGitPushCommand(command)) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=wrapped-git-push command=${JSON.stringify(command)}`);
+        return {
+          block: true,
+          blockReason: 'Repo Guard blocked a wrapped git push. Do not hide git push inside inline Python, Node, or shell wrapper commands. Run git push directly so Repo Guard can verify the real repo and branch.',
+        };
       }
 
       const repoPath = extractRepoPath(command, event.params);
