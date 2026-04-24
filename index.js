@@ -21,7 +21,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.12-enforce-fresh-default-before-branching 2026-04-23T20:36Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.13-normalize-repo-root-allowlist 2026-04-24T09:22Z';
 
 function appendLog(logFile, line) {
   try {
@@ -32,6 +32,14 @@ function appendLog(logFile, line) {
 
 function readCurrentBranch(repoPath) {
   return execFileSync('git', ['-C', repoPath, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
+}
+
+function resolveRepoRoot(repoPath) {
+  try {
+    return execFileSync('git', ['-C', repoPath, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  } catch {
+    return repoPath;
+  }
 }
 
 function readOriginRepoSlug(repoPath) {
@@ -194,7 +202,7 @@ export default definePluginEntry({
         };
       }
 
-      const repoPath = extractRepoPath(command, event.params);
+      const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));
       const pushTargetBranch = parsePushTargetBranch(command);
       let branch = '';
       try {

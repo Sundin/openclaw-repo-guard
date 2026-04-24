@@ -15,7 +15,7 @@ Current protections:
 - blocks creating a new branch from stale local `master`/`main` instead of a freshly updated default branch
 - refreshes and caches repo and PR preflight state before allowing a push
 
-Important: direct pushes to a default branch are denied by default. The only exception is an exact path match in `allowDirectPushRepos`.
+Important: direct pushes to a default branch are denied by default. The only exception is when the command resolves to a git repo whose top-level root path is listed in `allowDirectPushRepos`. Running from a subdirectory of an allowlisted repo should still count as that repo.
 
 That last rule is important: if you forgot to fetch/rebase and your branch is based on a stale default branch, Repo Guard should stop the push and tell you to rebase or create a fresh branch first.
 
