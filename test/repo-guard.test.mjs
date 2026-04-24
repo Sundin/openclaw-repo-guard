@@ -76,6 +76,21 @@ PY`), true);
   assert.equal(isWrappedGitPushCommand(`node -e "console.log('git push origin master')"`), false);
 });
 
+test('isWrappedGitPushCommand detects git push buried inside local script files', () => {
+  const tmpDir = fs.mkdtempSync('/tmp/repo-guard-script-');
+  const pyScript = `${tmpDir}/push.py`;
+  const shScript = `${tmpDir}/push.sh`;
+  const safePyScript = `${tmpDir}/safe.py`;
+
+  fs.writeFileSync(pyScript, `import subprocess\nsubprocess.run(['git', 'push', '--force-with-lease', 'origin', 'feature/test'], check=True)\n`);
+  fs.writeFileSync(shScript, '#!/usr/bin/env bash\ngit push --force-with-lease origin feature/test\n');
+  fs.writeFileSync(safePyScript, 'print("hello")\n');
+
+  assert.equal(isWrappedGitPushCommand(`python3 ${pyScript}`), true);
+  assert.equal(isWrappedGitPushCommand(`bash ${shScript}`), true);
+  assert.equal(isWrappedGitPushCommand(`python3 ${safePyScript}`), false);
+});
+
 test('isGitPushCommand detects git push in later top-level chained segments', () => {
   assert.equal(isGitPushCommand('npm test && git push origin master'), true);
   assert.equal(isGitPushCommand('echo ready; git push origin release'), true);
@@ -277,7 +292,7 @@ test('plugin refreshes origin before computing branch freshness state', () => {
 
 test('plugin source blocks wrapped git pushes before repo preflight', () => {
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
-  const wrappedBlock = source.indexOf('if (isWrappedGitPushCommand(command))');
+  const wrappedBlock = source.indexOf('if (wrappedGitPush)');
   const repoPathRead = source.indexOf('const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));');
   assert.notEqual(wrappedBlock, -1);
   assert.notEqual(repoPathRead, -1);
