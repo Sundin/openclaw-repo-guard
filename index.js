@@ -21,7 +21,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.14-branch-create-guard-fixes 2026-04-24T19:12Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.15-script-file-wrapped-push-detection 2026-04-24T19:50Z';
 
 function appendLog(logFile, line) {
   try {
@@ -186,7 +186,10 @@ export default definePluginEntry({
         return;
       }
 
-      const isPushCommand = isGitPushCommand(command);
+      const wrappedGitPush = isWrappedGitPushCommand(command, {
+        workdir: event.params?.workdir || event.params?.cwd || event.params?.dir,
+      });
+      const isPushCommand = wrappedGitPush || isGitPushCommand(command);
       const isBranchCreateCommand = isGitBranchCreateCommand(command);
 
       if (!isPushCommand && !isBranchCreateCommand) {
@@ -194,7 +197,7 @@ export default definePluginEntry({
         return;
       }
 
-      if (isWrappedGitPushCommand(command)) {
+      if (wrappedGitPush) {
         appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=wrapped-git-push command=${JSON.stringify(command)}`);
         return {
           block: true,

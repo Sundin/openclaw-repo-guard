@@ -9,6 +9,7 @@ Repo Guard intercepts `exec` calls that contain `git push` and applies preflight
 Current protections:
 - blocks force pushes, with no allowlist bypass
 - blocks wrapped or inline-script git pushes that try to hide the real push from preflight inspection
+- blocks local Python, Node, or shell scripts that bury `git push` inside a separate script file
 - blocks pushes from branches whose PR has already been merged
 - blocks direct pushes to the default branch unless the repo path is explicitly allowlisted
 - blocks pushes from branches that are not based on the latest fetched `origin/<default-branch>` tip
