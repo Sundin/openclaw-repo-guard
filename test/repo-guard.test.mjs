@@ -270,7 +270,7 @@ test('plugin refreshes origin before computing branch freshness state', () => {
 test('plugin source blocks wrapped git pushes before repo preflight', () => {
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const wrappedBlock = source.indexOf('if (isWrappedGitPushCommand(command))');
-  const repoPathRead = source.indexOf('const repoPath = extractRepoPath(command, event.params);');
+  const repoPathRead = source.indexOf('const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));');
   assert.notEqual(wrappedBlock, -1);
   assert.notEqual(repoPathRead, -1);
   assert.ok(wrappedBlock < repoPathRead, 'wrapped-push block should run before repo path preflight');
@@ -283,4 +283,11 @@ test('plugin source blocks stale local default branch checkout before new branch
   assert.match(source, /isGitBranchCreateCommand/);
   assert.match(source, /reason=stale-default-branch-create/);
   assert.match(source, /blocked new branch creation because it was not starting from a freshly updated/);
+});
+
+test('plugin source normalizes subdirectory workdirs to repo root before allowlist checks', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(source, /function resolveRepoRoot\(repoPath\)/);
+  assert.match(source, /'rev-parse', '--show-toplevel'/);
+  assert.match(source, /const repoPath = resolveRepoRoot\(extractRepoPath\(command, event.params\)\);/);
 });
