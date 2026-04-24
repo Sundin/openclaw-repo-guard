@@ -21,7 +21,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.13-normalize-repo-root-allowlist 2026-04-24T09:22Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.14-branch-create-guard-fixes 2026-04-24T19:12Z';
 
 function appendLog(logFile, line) {
   try {
@@ -275,6 +275,9 @@ export default definePluginEntry({
             blockReason: `Repo Guard blocked new branch creation because it was not starting from a freshly updated ${defaultBranch || 'default branch'}. Refresh/switch to the latest origin/${defaultBranch || 'default'} first, or create the branch explicitly from origin/${defaultBranch || 'default'}.`,
           };
         }
+
+        appendLog(logFile, `[ALLOW] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} reason=branch-create-guard-passed command=${JSON.stringify(command)}`);
+        return;
       }
 
       if (repoState?.pr?.merged) {
