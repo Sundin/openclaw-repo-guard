@@ -199,13 +199,16 @@ test('parsePushTargetBranch ignores quoted or escaped separators near push argum
   );
 });
 
-test('isGitBranchCreateCommand detects checkout/switch branch creation flows', () => {
+test('isGitBranchCreateCommand detects checkout/switch/branch creation flows', () => {
   assert.equal(isGitBranchCreateCommand('git checkout -b feature/test'), true);
   assert.equal(isGitBranchCreateCommand('git checkout -B feature/test origin/master'), true);
   assert.equal(isGitBranchCreateCommand('git switch -c feature/test'), true);
   assert.equal(isGitBranchCreateCommand('git switch -C feature/test origin/master'), true);
+  assert.equal(isGitBranchCreateCommand('git branch feature/test'), true);
+  assert.equal(isGitBranchCreateCommand('git branch feature/test origin/master'), true);
   assert.equal(isGitBranchCreateCommand('git checkout master'), false);
   assert.equal(isGitBranchCreateCommand('git switch master'), false);
+  assert.equal(isGitBranchCreateCommand('git branch --show-current'), false);
 });
 
 test('parseGitBranchCreate parses new branch and optional start point', () => {
@@ -223,6 +226,11 @@ test('parseGitBranchCreate parses new branch and optional start point', () => {
     subcommand: 'switch',
     newBranch: 'feature/test',
     startPoint: 'master',
+  });
+  assert.deepEqual(parseGitBranchCreate('git branch feature/test origin/master'), {
+    subcommand: 'branch',
+    newBranch: 'feature/test',
+    startPoint: 'origin/master',
   });
 });
 
@@ -283,6 +291,18 @@ test('plugin source blocks stale local default branch checkout before new branch
   assert.match(source, /isGitBranchCreateCommand/);
   assert.match(source, /reason=stale-default-branch-create/);
   assert.match(source, /blocked new branch creation because it was not starting from a freshly updated/);
+});
+
+test('plugin source returns after branch creation guard passes so push-only rules do not fire', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  const branchCreateBlock = source.indexOf('if (isBranchCreateCommand) {');
+  const branchCreateAllow = source.indexOf('reason=branch-create-guard-passed');
+  const mergedPrCheck = source.indexOf('if (repoState?.pr?.merged) {');
+  assert.notEqual(branchCreateBlock, -1);
+  assert.notEqual(branchCreateAllow, -1);
+  assert.notEqual(mergedPrCheck, -1);
+  assert.ok(branchCreateBlock < branchCreateAllow, 'branch-create allow log should be inside branch-create block');
+  assert.ok(branchCreateAllow < mergedPrCheck, 'branch-create handling should return before push-only checks');
 });
 
 test('plugin source normalizes subdirectory workdirs to repo root before allowlist checks', () => {

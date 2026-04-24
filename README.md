@@ -131,4 +131,4 @@ By default the plugin writes:
 This repo was extracted from a local OpenClaw plugin installation so it can be version controlled and improved normally.
 
 
-When creating a new branch, start from a freshly updated local default branch or explicitly from `origin/<default-branch>`. Repo Guard now blocks `git checkout -b ...` / `git switch -c ...` if they start from stale local `master`/`main`.
+When creating a new branch, start from a freshly updated local default branch or explicitly from `origin/<default-branch>`. Repo Guard now blocks `git checkout -b ...` / `git switch -c ...` / `git branch ...` if they start from stale local `master`/`main`.
