@@ -13,6 +13,7 @@ import {
   looksLikeLocalDefaultRef,
   isWrappedGitPushCommand,
   isForcePushCommand,
+  isGitHubForceRefUpdateCommand,
   parsePushTargetBranch,
   stateFilePath,
   hasFreshState,
@@ -21,7 +22,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.15-script-file-wrapped-push-detection 2026-04-24T19:50Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.17-script-file-and-github-force-guard 2026-04-28T18:39Z';
 
 function appendLog(logFile, line) {
   try {
@@ -189,7 +190,8 @@ export default definePluginEntry({
       const wrappedGitPush = isWrappedGitPushCommand(command, {
         workdir: event.params?.workdir || event.params?.cwd || event.params?.dir,
       });
-      const isPushCommand = wrappedGitPush || isGitPushCommand(command);
+      const githubForceRefUpdate = isGitHubForceRefUpdateCommand(command);
+      const isPushCommand = wrappedGitPush || isGitPushCommand(command) || githubForceRefUpdate;
       const isBranchCreateCommand = isGitBranchCreateCommand(command);
 
       if (!isPushCommand && !isBranchCreateCommand) {
@@ -202,6 +204,14 @@ export default definePluginEntry({
         return {
           block: true,
           blockReason: 'Repo Guard blocked a wrapped git push. Do not hide git push inside inline Python, Node, or shell wrapper commands. Run git push directly so Repo Guard can verify the real repo and branch.',
+        };
+      }
+
+      if (githubForceRefUpdate) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=github-force-ref-update command=${JSON.stringify(command)}`);
+        return {
+          block: true,
+          blockReason: 'Repo Guard blocked a forced GitHub branch ref update. Do not rewrite branch history through the GitHub refs API, curl, or gh api. Merge latest default branch changes and push normally instead.',
         };
       }
 
