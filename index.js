@@ -22,7 +22,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.16-block-github-force-ref-update 2026-04-28T13:10Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.17-script-file-and-github-force-guard 2026-04-28T18:39Z';
 
 function appendLog(logFile, line) {
   try {
