@@ -12,6 +12,7 @@ import {
   looksLikeLocalDefaultRef,
   isWrappedGitPushCommand,
   isForcePushCommand,
+  isGitHubForceRefUpdateCommand,
   parsePushTargetBranch,
   stateFilePath,
   hasFreshState,
@@ -132,6 +133,31 @@ test('isForcePushCommand detects force push variants', () => {
     true,
   );
   assert.equal(isForcePushCommand('git push origin branch'), false);
+});
+
+test('isGitHubForceRefUpdateCommand detects forced GitHub refs API branch rewrites', () => {
+  assert.equal(
+    isGitHubForceRefUpdateCommand(
+      `curl -sS -X PATCH https://api.github.com/repos/varghand/admin-tool/git/refs/heads/fix/issue-159 -d '{"sha":"abc123","force":true}'`,
+    ),
+    true,
+  );
+  assert.equal(
+    isGitHubForceRefUpdateCommand(
+      `gh api --method PATCH repos/varghand/admin-tool/git/refs/heads/fix/issue-159 --input - <<'EOF'\n{"sha":"abc123","force":true}\nEOF`,
+    ),
+    true,
+  );
+  assert.equal(
+    isGitHubForceRefUpdateCommand(
+      `curl -sS -X PATCH https://api.github.com/repos/varghand/admin-tool/git/refs/heads/fix/issue-159 -d '{"sha":"abc123","force":false}'`,
+    ),
+    false,
+  );
+  assert.equal(
+    isGitHubForceRefUpdateCommand('curl -sS https://api.github.com/repos/varghand/admin-tool/pulls'),
+    false,
+  );
 });
 
 test('parsePushTargetBranch handles standard remote plus branch syntax', () => {
@@ -298,6 +324,17 @@ test('plugin source blocks wrapped git pushes before repo preflight', () => {
   assert.notEqual(repoPathRead, -1);
   assert.ok(wrappedBlock < repoPathRead, 'wrapped-push block should run before repo path preflight');
   assert.match(source, /Repo Guard blocked a wrapped git push/);
+});
+
+
+test('plugin source blocks forced GitHub ref updates before repo preflight', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  const githubRefBlock = source.indexOf('if (githubForceRefUpdate)');
+  const repoPathRead = source.indexOf('const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));');
+  assert.notEqual(githubRefBlock, -1);
+  assert.notEqual(repoPathRead, -1);
+  assert.ok(githubRefBlock < repoPathRead, 'github ref update block should run before repo path preflight');
+  assert.match(source, /blocked a forced GitHub branch ref update/);
 });
 
 
