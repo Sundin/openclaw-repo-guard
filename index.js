@@ -293,15 +293,19 @@ export default definePluginEntry({
         return;
       }
 
-      if (repoState?.pr?.merged) {
-        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=merged-pr-branch repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} pr=${repoState.pr.number || '-'} command=${JSON.stringify(command)}`);
+      const effectiveBranch = pushTargetBranch || branch;
+      const mergedPrBranchState = effectiveBranch === branch
+        ? repoState?.pr
+        : readPrState(repoPath, effectiveBranch, logFile);
+
+      if (mergedPrBranchState?.merged) {
+        appendLog(logFile, `[BLOCK] tool=exec session=${ctx.sessionKey || '-'} run=${event.runId || '-'} reason=merged-pr-branch repo=${JSON.stringify(repoPath)} branch=${JSON.stringify(branch)} effectiveBranch=${JSON.stringify(effectiveBranch)} pr=${mergedPrBranchState.number || mergedPrBranchState.prNumber || '-'} command=${JSON.stringify(command)}`);
         return {
           block: true,
-          blockReason: `Repo Guard blocked a push from merged branch ${branch}${repoState.pr.number ? ` (PR #${repoState.pr.number})` : ''}. Create a fresh branch from the default branch instead.`,
+          blockReason: `Repo Guard blocked a push to merged PR branch ${effectiveBranch}${mergedPrBranchState.number || mergedPrBranchState.prNumber ? ` (PR #${mergedPrBranchState.number || mergedPrBranchState.prNumber})` : ''}. Create a fresh branch from the default branch instead.`,
         };
       }
 
-      const effectiveBranch = pushTargetBranch || branch;
       const inferredProtectedDefaultBranch = !repoState?.defaultBranch && (effectiveBranch === 'master' || effectiveBranch === 'main');
       const isDefaultBranchPush = (Boolean(repoState?.defaultBranch) && effectiveBranch === repoState.defaultBranch) || inferredProtectedDefaultBranch;
       const directPushAllowed = allowDirectPushRepos.includes(repoPath);

@@ -365,12 +365,20 @@ test('plugin source returns after branch creation guard passes so push-only rule
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const branchCreateBlock = source.indexOf('if (isBranchCreateCommand) {');
   const branchCreateAllow = source.indexOf('reason=branch-create-guard-passed');
-  const mergedPrCheck = source.indexOf('if (repoState?.pr?.merged) {');
+  const mergedPrCheck = source.indexOf('const mergedPrBranchState = effectiveBranch === branch');
   assert.notEqual(branchCreateBlock, -1);
   assert.notEqual(branchCreateAllow, -1);
   assert.notEqual(mergedPrCheck, -1);
   assert.ok(branchCreateBlock < branchCreateAllow, 'branch-create allow log should be inside branch-create block');
   assert.ok(branchCreateAllow < mergedPrCheck, 'branch-create handling should return before push-only checks');
+});
+
+test('plugin source checks merged PR state for the effective push target branch', () => {
+  const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(source, /const effectiveBranch = pushTargetBranch \|\| branch;/);
+  assert.match(source, /const mergedPrBranchState = effectiveBranch === branch/);
+  assert.match(source, /readPrState\(repoPath, effectiveBranch, logFile\)/);
+  assert.match(source, /blocked a push to merged PR branch/);
 });
 
 test('plugin source normalizes subdirectory workdirs to repo root before allowlist checks', () => {
