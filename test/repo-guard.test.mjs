@@ -36,7 +36,23 @@ test('extractRepoPath prefers git -C path', () => {
   );
 });
 
-test('extractRepoPath falls back to workdir when no git -C is present', () => {
+test('extractRepoPath uses top-level cd prefixes before falling back to workdir', () => {
+  assert.equal(
+    extractRepoPath('cd /tmp/repo && git push origin master', { workdir: '/work/tree' }),
+    '/tmp/repo',
+  );
+  assert.equal(
+    extractRepoPath('cd "./quoted repo" && git checkout -b feature/test', {}),
+    './quoted repo',
+  );
+  assert.equal(
+    extractRepoPath('cd /tmp/one && cd /tmp/two && git push origin feature/test', {}),
+    '/tmp/two',
+  );
+  assert.equal(
+    extractRepoPath('cd /tmp/repo\ngit push origin feature/line-break', { workdir: '/work/tree' }),
+    '/tmp/repo',
+  );
   assert.equal(
     extractRepoPath('git push origin master', { workdir: '/work/tree' }),
     '/work/tree',
