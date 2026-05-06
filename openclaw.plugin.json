@@ -2,6 +2,10 @@
   "id": "repo-guard",
   "name": "Repo Guard",
   "description": "Blocks unsafe git operations before tool execution",
+  "activation": {
+    "onStartup": false,
+    "onCapabilities": ["hook"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
