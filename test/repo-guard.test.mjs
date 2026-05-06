@@ -76,6 +76,8 @@ test('isGitPushCommand detects push commands and ignores non-push commands', () 
   assert.equal(isGitPushCommand('git push origin master'), true);
   assert.equal(isGitPushCommand('git -C /tmp/repo push -u origin feature/test'), true);
   assert.equal(isGitPushCommand('FOO=bar git push origin master'), true);
+  assert.equal(isGitPushCommand('git -c color.ui=always push origin master'), true);
+  assert.equal(isGitPushCommand('git --no-pager push origin master'), true);
   assert.equal(isGitPushCommand('git status'), false);
   assert.equal(isGitPushCommand('gh pr create'), false);
 });
@@ -85,6 +87,16 @@ test('isGitPushCommand ignores embedded git push strings in non-push commands', 
   assert.equal(isGitPushCommand('printf "git push origin master\\n"'), false);
   assert.equal(isGitPushCommand('node -e "console.log(\'git push origin master\')"'), false);
   assert.equal(isGitPushCommand('git commit -m "prepare git push origin master"'), false);
+  assert.equal(isGitPushCommand('git checkout -b fix/push-parser-bug'), false);
+  assert.equal(
+    isGitPushCommand(`set -euo pipefail
+cd /home/ubuntu/.openclaw/plugins/repo-guard
+git checkout master
+git reset --hard origin/master
+git checkout -b fix/strict-git-push-subcommand-detection
+`),
+    false,
+  );
   assert.equal(isGitPushCommand('bash -lc "git status && echo git push origin master"'), false);
   assert.equal(isGitPushCommand(`cat > /tmp/issue.md <<'EOF'
 Please investigate:
@@ -197,6 +209,10 @@ test('parsePushTargetBranch handles standard remote plus branch syntax', () => {
   assert.equal(
     parsePushTargetBranch('git -C /tmp/repo push -u origin fix/my-branch'),
     'fix/my-branch',
+  );
+  assert.equal(
+    parsePushTargetBranch('git -c color.ui=always push origin release/branch'),
+    'release/branch',
   );
   assert.equal(
     parsePushTargetBranch('git push origin master'),
