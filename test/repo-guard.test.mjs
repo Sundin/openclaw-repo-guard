@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import {
   extractExecCommand,
   extractRepoPath,
+  extractRepoPathCandidates,
+  chooseRepoPath,
   normalizeCommand,
   isGitPushCommand,
   isGitBranchCreateCommand,
@@ -66,6 +68,39 @@ gh issue create --body-file /tmp/issue.md`, { workdir: '/work/tree' }),
     extractRepoPath('git push origin master', { workdir: '/work/tree' }),
     '/work/tree',
   );
+});
+
+test('extractRepoPathCandidates keeps repo hints in priority order', () => {
+  assert.deepEqual(
+    extractRepoPathCandidates('cd /tmp/repo && git push origin master', { workdir: '/work/tree' }),
+    ['/tmp/repo', '/work/tree', process.cwd()],
+  );
+  assert.deepEqual(
+    extractRepoPathCandidates('git -C /tmp/repo push origin master', { workdir: '/work/tree' }),
+    ['/tmp/repo', '/work/tree', process.cwd()],
+  );
+  assert.deepEqual(
+    extractRepoPathCandidates('cd /tmp/one && cd /tmp/two && git push origin feature/test', { workdir: '/work/tree' }),
+    ['/tmp/two', '/work/tree', process.cwd()],
+  );
+});
+
+test('chooseRepoPath falls through to the first candidate that resolves to a git repo', () => {
+  const seen = [];
+  const resolved = chooseRepoPath(
+    'cd /home/ubuntu/repos/jawbreaker/jaw-admin && git checkout -b fix/test',
+    { workdir: '/home/ubuntu/.openclaw/workspace/agents/lobban' },
+    (candidate) => {
+      seen.push(candidate);
+      if (candidate === '/home/ubuntu/repos/jawbreaker/jaw-admin') {
+        return '/home/ubuntu/repos/jawbreaker/jaw-admin';
+      }
+      throw new Error('skip');
+    },
+  );
+
+  assert.equal(resolved, '/home/ubuntu/repos/jawbreaker/jaw-admin');
+  assert.deepEqual(seen, ['/home/ubuntu/repos/jawbreaker/jaw-admin']);
 });
 
 test('normalizeCommand collapses whitespace safely', () => {
@@ -368,7 +403,7 @@ test('plugin refreshes origin before computing branch freshness state', () => {
 test('plugin source blocks wrapped git pushes before repo preflight', () => {
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const wrappedBlock = source.indexOf('if (wrappedGitPush)');
-  const repoPathRead = source.indexOf('const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));');
+  const repoPathRead = source.indexOf('const repoPath = chooseRepoPath(command, event.params, resolveRepoRoot);');
   assert.notEqual(wrappedBlock, -1);
   assert.notEqual(repoPathRead, -1);
   assert.ok(wrappedBlock < repoPathRead, 'wrapped-push block should run before repo path preflight');
@@ -379,7 +414,7 @@ test('plugin source blocks wrapped git pushes before repo preflight', () => {
 test('plugin source blocks forced GitHub ref updates before repo preflight', () => {
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   const githubRefBlock = source.indexOf('if (githubForceRefUpdate)');
-  const repoPathRead = source.indexOf('const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));');
+  const repoPathRead = source.indexOf('const repoPath = chooseRepoPath(command, event.params, resolveRepoRoot);');
   assert.notEqual(githubRefBlock, -1);
   assert.notEqual(repoPathRead, -1);
   assert.ok(githubRefBlock < repoPathRead, 'github ref update block should run before repo path preflight');
@@ -418,5 +453,5 @@ test('plugin source normalizes subdirectory workdirs to repo root before allowli
   const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
   assert.match(source, /function resolveRepoRoot\(repoPath\)/);
   assert.match(source, /'rev-parse', '--show-toplevel'/);
-  assert.match(source, /const repoPath = resolveRepoRoot\(extractRepoPath\(command, event.params\)\);/);
+  assert.match(source, /const repoPath = chooseRepoPath\(command, event.params, resolveRepoRoot\);/);
 });

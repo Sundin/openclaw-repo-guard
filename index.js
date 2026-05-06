@@ -5,6 +5,7 @@ import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
 import {
   extractExecCommand,
   extractRepoPath,
+  chooseRepoPath,
   normalizeCommand,
   isGitPushCommand,
   isGitBranchCreateCommand,
@@ -22,7 +23,7 @@ import {
 const DEFAULT_STATE_DIR = path.join(process.env.HOME || '/tmp', '.openclaw', 'state');
 const DEFAULT_LOG_FILE = path.join(process.env.HOME || '/tmp', '.openclaw', 'logs', 'repo-guard.log');
 const DEFAULT_PREFLIGHT_MAX_AGE_MS = 60 * 1000;
-const BUILD_SIGNATURE = 'repo-guard build 0.1.17-script-file-and-github-force-guard 2026-04-28T18:39Z';
+const BUILD_SIGNATURE = 'repo-guard build 0.1.18-repo-path-candidate-resolution 2026-05-06T15:25Z';
 
 function appendLog(logFile, line) {
   try {
@@ -215,7 +216,7 @@ export default definePluginEntry({
         };
       }
 
-      const repoPath = resolveRepoRoot(extractRepoPath(command, event.params));
+      const repoPath = chooseRepoPath(command, event.params, resolveRepoRoot);
       const pushTargetBranch = parsePushTargetBranch(command);
       let branch = '';
       try {
