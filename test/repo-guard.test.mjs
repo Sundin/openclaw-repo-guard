@@ -54,6 +54,15 @@ test('extractRepoPath uses top-level cd prefixes before falling back to workdir'
     '/tmp/repo',
   );
   assert.equal(
+    extractRepoPath(`cat > /tmp/issue.md <<'EOF'
+Please investigate:
+cd /path/to/repo
+git push origin master
+EOF
+gh issue create --body-file /tmp/issue.md`, { workdir: '/work/tree' }),
+    '/work/tree',
+  );
+  assert.equal(
     extractRepoPath('git push origin master', { workdir: '/work/tree' }),
     '/work/tree',
   );
@@ -77,8 +86,13 @@ test('isGitPushCommand ignores embedded git push strings in non-push commands', 
   assert.equal(isGitPushCommand('node -e "console.log(\'git push origin master\')"'), false);
   assert.equal(isGitPushCommand('git commit -m "prepare git push origin master"'), false);
   assert.equal(isGitPushCommand('bash -lc "git status && echo git push origin master"'), false);
+  assert.equal(isGitPushCommand(`cat > /tmp/issue.md <<'EOF'
+Please investigate:
+cd /path/to/repo
+git push origin master
+EOF
+gh issue create --body-file /tmp/issue.md`), false);
 });
-
 
 
 test('isWrappedGitPushCommand detects inline wrapper bypass patterns', () => {
@@ -89,6 +103,9 @@ PY`), true);
   assert.equal(isWrappedGitPushCommand(`python3 -c "import subprocess; subprocess.run(['git','push'], check=True)"`), true);
   assert.equal(isWrappedGitPushCommand(`node -e "require('node:child_process').execFileSync('git', ['push'])"`), true);
   assert.equal(isWrappedGitPushCommand(`bash -lc 'git push origin branch'`), true);
+  assert.equal(isWrappedGitPushCommand(`bash <<'EOF'
+git push origin branch
+EOF`), true);
   assert.equal(isWrappedGitPushCommand(`python3 -c "print('git push origin master')"`), false);
   assert.equal(isWrappedGitPushCommand(`node -e "console.log('git push origin master')"`), false);
 });
